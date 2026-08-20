@@ -15,6 +15,11 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().default('postgres://sbs:sbs@localhost:5432/sbs'),
   RABBITMQ_URL: z.string().default('amqp://sbs:sbs@localhost:5672'),
   CORS_ORIGIN: z.string().default('*'),
+  // Auth — production MUST override JWT_SECRET and the admin credentials.
+  JWT_SECRET: z.string().min(16).default('dev-insecure-secret-change-me-please'),
+  ADMIN_EMAIL: z.string().email().default('admin@example.com'),
+  ADMIN_PASSWORD: z.string().min(1).default('admin12345'),
+  ADMIN_NAME: z.string().default('Admin'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
