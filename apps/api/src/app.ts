@@ -16,6 +16,7 @@ import { logger } from './shared/logger';
 import { authRoutes } from './modules/auth/auth.routes';
 import { auditRoutes } from './modules/audit/audit.routes';
 import { customerRoutes } from './modules/customers/customers.routes';
+import { closeBroker } from './shared/messaging/connection';
 import { healthRoutes } from './modules/health/health.routes';
 import { invoiceRoutes } from './modules/invoices/invoices.routes';
 import { planRoutes } from './modules/plans/plans.routes';
@@ -79,6 +80,11 @@ export async function buildApp() {
   app.get('/metrics', async (_req, reply) => {
     reply.header('content-type', registry.contentType);
     return registry.metrics();
+  });
+
+  // Tear down the broker connection when the app closes (keeps tests clean).
+  app.addHook('onClose', async () => {
+    await closeBroker();
   });
 
   await app.register(authRoutes);
