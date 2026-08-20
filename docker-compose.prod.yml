@@ -82,6 +82,23 @@ services:
     depends_on:
       - api
 
+  # One-shot migrations + admin seed. Not started by `up`; invoked explicitly
+  # by the deploy workflow: `docker compose run --rm migrate`.
+  migrate:
+    image: ${REGISTRY}/sbs-api:${IMAGE_TAG:-latest}
+    profiles: ['tools']
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+    command: ['sh', '-c', 'node dist/migrate.js && node dist/seed.js']
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
