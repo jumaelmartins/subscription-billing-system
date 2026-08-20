@@ -8,21 +8,28 @@
     "dev": "tsx watch src/main.ts",
     "build": "tsup",
     "start": "node dist/main.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@sbs/db": "workspace:*",
     "amqp-connection-manager": "^4.1.14",
     "amqplib": "^0.10.5",
+    "drizzle-orm": "^0.38.3",
     "pino": "^9.6.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@sbs/contracts": "workspace:*",
+    "@testcontainers/postgresql": "^10.16.0",
+    "@testcontainers/rabbitmq": "^10.16.0",
     "@types/amqplib": "^0.10.6",
     "@types/node": "^22.10.5",
     "pino-pretty": "^13.0.0",
+    "testcontainers": "^10.16.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
   }
 }

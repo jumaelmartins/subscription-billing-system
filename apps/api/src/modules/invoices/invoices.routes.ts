@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { generateInvoiceSchema } from '@sbs/contracts';
+import { generateInvoiceSchema, RoutingKeys } from '@sbs/contracts';
 import { parseInput } from '../../shared/errors';
+import { publishEvent } from '../../shared/messaging/publisher';
 import { invoicesService } from './invoices.service';
 
 export async function invoiceRoutes(app: FastifyInstance): Promise<void> {
@@ -21,6 +22,16 @@ export async function invoiceRoutes(app: FastifyInstance): Promise<void> {
   app.post('/invoices', async (req, reply) => {
     const input = parseInput(generateInvoiceSchema, req.body);
     const created = await invoicesService.generate(input, req.user.sub);
+    void publishEvent(
+      RoutingKeys.InvoiceCreated,
+      {
+        invoiceId: created.id,
+        subscriptionId: created.subscriptionId,
+        customerId: created.customerId,
+        amount: created.amount,
+      },
+      { correlationId: req.id, requestId: req.id },
+    );
     reply.code(201);
     return created;
   });

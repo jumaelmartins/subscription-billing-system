@@ -1,7 +1,2 @@
-export * from './users';
-export * from './customers';
-export * from './plans';
-export * from './audit';
-export * from './subscriptions';
-export * from './invoices';
-export * from './payments';
+// Schema now lives in the shared @sbs/db package (consumed by api and worker).
+export * from '@sbs/db';

@@ -3,8 +3,10 @@ import {
   cancelSubscriptionSchema,
   changePlanSchema,
   createSubscriptionSchema,
+  RoutingKeys,
 } from '@sbs/contracts';
 import { parseInput } from '../../shared/errors';
+import { publishEvent } from '../../shared/messaging/publisher';
 import { subscriptionsService } from './subscriptions.service';
 
 export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
@@ -25,6 +27,11 @@ export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
   app.post('/subscriptions', async (req, reply) => {
     const input = parseInput(createSubscriptionSchema, req.body);
     const created = await subscriptionsService.create(input, req.user.sub);
+    void publishEvent(
+      RoutingKeys.SubscriptionCreated,
+      { subscriptionId: created.id, customerId: created.customerId, planId: created.planId },
+      { correlationId: req.id, requestId: req.id },
+    );
     reply.code(201);
     return created;
   });
@@ -32,17 +39,35 @@ export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
   app.post('/subscriptions/:id/change-plan', async (req) => {
     const { id } = req.params as { id: string };
     const input = parseInput(changePlanSchema, req.body);
-    return subscriptionsService.changePlan(id, input, req.user.sub);
+    const updated = await subscriptionsService.changePlan(id, input, req.user.sub);
+    void publishEvent(
+      RoutingKeys.SubscriptionPlanChanged,
+      { subscriptionId: updated.id, customerId: updated.customerId, planId: updated.planId },
+      { correlationId: req.id, requestId: req.id },
+    );
+    return updated;
   });
 
   app.post('/subscriptions/:id/cancel', async (req) => {
     const { id } = req.params as { id: string };
     const input = parseInput(cancelSubscriptionSchema, req.body ?? {});
-    return subscriptionsService.cancel(id, input, req.user.sub);
+    const updated = await subscriptionsService.cancel(id, input, req.user.sub);
+    void publishEvent(
+      RoutingKeys.SubscriptionCanceled,
+      { subscriptionId: updated.id, customerId: updated.customerId },
+      { correlationId: req.id, requestId: req.id },
+    );
+    return updated;
   });
 
   app.post('/subscriptions/:id/reactivate', async (req) => {
     const { id } = req.params as { id: string };
-    return subscriptionsService.reactivate(id, req.user.sub);
+    const updated = await subscriptionsService.reactivate(id, req.user.sub);
+    void publishEvent(
+      RoutingKeys.SubscriptionReactivated,
+      { subscriptionId: updated.id, customerId: updated.customerId },
+      { correlationId: req.id, requestId: req.id },
+    );
+    return updated;
   });
 }
