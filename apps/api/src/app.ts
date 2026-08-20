@@ -11,9 +11,13 @@ import Fastify, {
   type FastifyRequest,
 } from 'fastify';
 import { env } from './config/env';
+import { AppError } from './shared/errors';
 import { logger } from './shared/logger';
 import { authRoutes } from './modules/auth/auth.routes';
+import { auditRoutes } from './modules/audit/audit.routes';
+import { customerRoutes } from './modules/customers/customers.routes';
 import { healthRoutes } from './modules/health/health.routes';
+import { planRoutes } from './modules/plans/plans.routes';
 import { httpRequestDuration, httpRequestsTotal, registry } from './shared/observability/metrics';
 
 export async function buildApp() {
@@ -53,8 +57,13 @@ export async function buildApp() {
 
   app.setErrorHandler((error: FastifyError, req, reply) => {
     req.log.error({ err: error }, 'request error');
+    if (error instanceof AppError) {
+      return reply.code(error.statusCode).send({ error: error.code, details: error.details });
+    }
     const status = error.statusCode ?? 500;
-    reply.code(status).send({ error: status >= 500 ? 'internal_error' : error.message });
+    return reply
+      .code(status)
+      .send({ error: status >= 500 ? 'internal_error' : (error.message ?? 'error') });
   });
 
   // Record Prometheus metrics for every response.
@@ -71,6 +80,9 @@ export async function buildApp() {
   });
 
   await app.register(authRoutes);
+  await app.register(customerRoutes);
+  await app.register(planRoutes);
+  await app.register(auditRoutes);
   await app.register(healthRoutes);
 
   return app;
