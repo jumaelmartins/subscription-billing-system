@@ -9,6 +9,7 @@ FROM base AS build
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY packages/config/package.json packages/config/
 COPY packages/contracts/package.json packages/contracts/
+COPY packages/db/package.json packages/db/
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
 COPY apps/web/package.json apps/web/
