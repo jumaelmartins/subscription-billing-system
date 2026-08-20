@@ -15,6 +15,13 @@
       "when": 1787267559565,
       "tag": "0001_ambiguous_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787267974180,
+      "tag": "0002_pink_roulette",
+      "breakpoints": true
     }
   ]
 }

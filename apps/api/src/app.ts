@@ -17,7 +17,9 @@ import { authRoutes } from './modules/auth/auth.routes';
 import { auditRoutes } from './modules/audit/audit.routes';
 import { customerRoutes } from './modules/customers/customers.routes';
 import { healthRoutes } from './modules/health/health.routes';
+import { invoiceRoutes } from './modules/invoices/invoices.routes';
 import { planRoutes } from './modules/plans/plans.routes';
+import { subscriptionRoutes } from './modules/subscriptions/subscriptions.routes';
 import { httpRequestDuration, httpRequestsTotal, registry } from './shared/observability/metrics';
 
 export async function buildApp() {
@@ -82,6 +84,8 @@ export async function buildApp() {
   await app.register(authRoutes);
   await app.register(customerRoutes);
   await app.register(planRoutes);
+  await app.register(subscriptionRoutes);
+  await app.register(invoiceRoutes);
   await app.register(auditRoutes);
   await app.register(healthRoutes);
 
