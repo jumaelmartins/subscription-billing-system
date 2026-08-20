@@ -1,0 +1,106 @@
+# Production stack for the VPS. Images are pulled from the registry (built and
+# pushed by CI); only Caddy is exposed publicly (ports 80/443) and it terminates
+# TLS + reverse-proxies to the internal api/web services.
+#
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Requires a .env file on the host (see .env.example).
+name: sbs
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 15s
+      timeout: 10s
+      retries: 12
+
+  api:
+    image: ${REGISTRY}/sbs-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_PORT: 3333
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
+      CORS_ORIGIN: https://app.${DOMAIN}
+    expose:
+      - '3333'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    image: ${REGISTRY}/sbs-worker:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  web:
+    image: ${REGISTRY}/sbs-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # API base is proxied same-origin through Caddy/Next in the frontend phase.
+      API_INTERNAL_URL: http://api:3333
+    expose:
+      - '3000'
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+
+volumes:
+  pgdata:
+  rabbitmq_data:
+  caddy_data:
+  caddy_config:

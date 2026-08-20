@@ -1,0 +1,85 @@
+# Local development stack: full system in one command.
+#   docker compose up --build
+# Exposes Postgres (5432), RabbitMQ + management UI (5672 / 15672),
+# API (3333) and web (3000) on localhost.
+name: sbs-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sbs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sbs}
+      POSTGRES_DB: ${POSTGRES_DB:-sbs}
+    ports:
+      - '${POSTGRES_HOST_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-sbs} -d ${POSTGRES_DB:-sbs}']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-sbs}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-sbs}
+    ports:
+      - '${RABBITMQ_HOST_PORT:-5672}:5672'
+      - '${RABBITMQ_MGMT_PORT:-15672}:15672'
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 10s
+      timeout: 10s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      API_PORT: 3333
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-sbs}:${POSTGRES_PASSWORD:-sbs}@postgres:5432/${POSTGRES_DB:-sbs}
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-sbs}:${RABBITMQ_DEFAULT_PASS:-sbs}@rabbitmq:5672
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - '${API_HOST_PORT:-3333}:3333'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-sbs}:${POSTGRES_PASSWORD:-sbs}@postgres:5432/${POSTGRES_DB:-sbs}
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-sbs}:${RABBITMQ_DEFAULT_PASS:-sbs}@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://localhost:3333
+    ports:
+      - '${WEB_HOST_PORT:-3000}:3000'
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
