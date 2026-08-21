@@ -21,6 +21,7 @@ import { healthRoutes } from './modules/health/health.routes';
 import { invoiceRoutes } from './modules/invoices/invoices.routes';
 import { planRoutes } from './modules/plans/plans.routes';
 import { subscriptionRoutes } from './modules/subscriptions/subscriptions.routes';
+import { webhookRoutes } from './modules/webhooks/webhooks.routes';
 import { httpRequestDuration, httpRequestsTotal, registry } from './shared/observability/metrics';
 
 export async function buildApp() {
@@ -92,6 +93,7 @@ export async function buildApp() {
   await app.register(planRoutes);
   await app.register(subscriptionRoutes);
   await app.register(invoiceRoutes);
+  await app.register(webhookRoutes);
   await app.register(auditRoutes);
   await app.register(healthRoutes);
 
