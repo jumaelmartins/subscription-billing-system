@@ -15,6 +15,9 @@ COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile
 COPY . .
 ENV BUILD_STANDALONE=1
+# Next evaluates rewrites() at build time; the API proxy target is the compose
+# service name, constant across dev and prod docker networks.
+ENV API_INTERNAL_URL=http://api:3333
 RUN pnpm --filter @sbs/web... build
 
 # ---- runtime: Next.js standalone server ----
