@@ -1,12 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Self-contained server bundle for a small production Docker image.
-  // Enabled only in the Docker build (Linux); skipped locally so Windows dev
-  // isn't blocked by symlink privileges during trace collection.
   output: process.env.BUILD_STANDALONE ? 'standalone' : undefined,
-  // Linting is handled at the monorepo level / in a later phase.
   eslint: { ignoreDuringBuilds: true },
+  // Same-origin proxy to the API. The browser always calls /api/* on this host,
+  // so the httpOnly auth cookie (host-only) flows without cross-site concerns.
+  async rewrites() {
+    const api = process.env.API_INTERNAL_URL ?? 'http://localhost:3333';
+    return [{ source: '/api/:path*', destination: `${api}/:path*` }];
+  },
 };
 
 export default nextConfig;

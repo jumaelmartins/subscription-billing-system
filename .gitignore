@@ -35,3 +35,6 @@ Thumbs.db
 # caddy runtime data (prod volume)
 caddy_data/
 caddy_config/
+
+# playwright mcp artifacts
+.playwright-mcp/

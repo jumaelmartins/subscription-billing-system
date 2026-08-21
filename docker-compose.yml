@@ -46,6 +46,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-sbs}:${POSTGRES_PASSWORD:-sbs}@postgres:5432/${POSTGRES_DB:-sbs}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-sbs}:${RABBITMQ_DEFAULT_PASS:-sbs}@rabbitmq:5672
       CORS_ORIGIN: http://localhost:3000
+      COOKIE_SECURE: 'false'
     ports:
       - '${API_HOST_PORT:-3333}:3333'
     depends_on:
@@ -75,7 +76,8 @@ services:
       dockerfile: apps/web/Dockerfile
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: http://localhost:3333
+      # Server-side proxy target (Next rewrites /api/* → the api service).
+      API_INTERNAL_URL: http://api:3333
     ports:
       - '${WEB_HOST_PORT:-3000}:3000'
     depends_on:

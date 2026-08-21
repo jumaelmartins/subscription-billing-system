@@ -1,11 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { loginRequestSchema, type AuthUser } from '@sbs/contracts';
-import { env } from '../../config/env';
+import { env, isProduction } from '../../config/env';
 import { findUserByEmail, findUserById } from '../users/users.repository';
 import { verifyPassword } from './password';
 
 const COOKIE_NAME = 'token';
 const EIGHT_HOURS = 60 * 60 * 8;
+const COOKIE_SECURE = env.COOKIE_SECURE ? env.COOKIE_SECURE === 'true' : isProduction;
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post(
@@ -27,7 +28,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: env.NODE_ENV === 'production',
+        secure: COOKIE_SECURE,
         maxAge: EIGHT_HOURS,
       });
 

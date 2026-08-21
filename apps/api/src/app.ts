@@ -20,6 +20,7 @@ import { closeBroker } from './shared/messaging/connection';
 import { healthRoutes } from './modules/health/health.routes';
 import { invoiceRoutes } from './modules/invoices/invoices.routes';
 import { planRoutes } from './modules/plans/plans.routes';
+import { statsRoutes } from './modules/stats/stats.routes';
 import { subscriptionRoutes } from './modules/subscriptions/subscriptions.routes';
 import { webhookRoutes } from './modules/webhooks/webhooks.routes';
 import { httpRequestDuration, httpRequestsTotal, registry } from './shared/observability/metrics';
@@ -94,6 +95,7 @@ export async function buildApp() {
   await app.register(subscriptionRoutes);
   await app.register(invoiceRoutes);
   await app.register(webhookRoutes);
+  await app.register(statsRoutes);
   await app.register(auditRoutes);
   await app.register(healthRoutes);
 
