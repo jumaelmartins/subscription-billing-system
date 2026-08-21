@@ -1,9 +1,12 @@
 import { closeConnection, getConnection } from './broker';
+import { env } from './config/env';
 import { startNotificationsConsumer } from './consumers/notifications.consumer';
 import { startWebhooksConsumer } from './consumers/webhooks.consumer';
 import { logger } from './logger';
+import { startMetricsServer } from './metrics';
 
 async function main(): Promise<void> {
+  const metricsServer = startMetricsServer(env.METRICS_PORT);
   const connection = getConnection();
   const notifications = startNotificationsConsumer(connection);
   const webhooks = startWebhooksConsumer(connection);
@@ -15,6 +18,7 @@ async function main(): Promise<void> {
     try {
       await Promise.all([notifications.close(), webhooks.close()]);
       await closeConnection();
+      metricsServer.close();
     } finally {
       process.exit(0);
     }

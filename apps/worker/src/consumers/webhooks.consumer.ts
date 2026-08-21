@@ -3,6 +3,7 @@ import type { ConfirmChannel, ConsumeMessage } from 'amqplib';
 import { EXCHANGE, EXCHANGE_TYPE, Queues, RoutingKeys, type EventEnvelope } from '@sbs/contracts';
 import { processWebhook } from '../handlers/webhook.handler';
 import { logger } from '../logger';
+import { messagesFailed, messagesProcessed } from '../metrics';
 
 export function startWebhooksConsumer(connection: AmqpConnectionManager): ChannelWrapper {
   const wrapper = connection.createChannel({
@@ -37,8 +38,10 @@ async function onMessage(
     const evt = JSON.parse(msg.content.toString()) as EventEnvelope;
     await processWebhook(connection, evt);
     wrapper.ack(msg);
+    messagesProcessed.inc({ consumer: 'webhooks' });
   } catch (err) {
     logger.error({ err }, 'webhook processing failed; dead-lettering message');
     wrapper.nack(msg, false, false);
+    messagesFailed.inc({ consumer: 'webhooks' });
   }
 }

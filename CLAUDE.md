@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current State
 
-**Phase 0 (walking skeleton) is implemented.** The monorepo is scaffolded (pnpm workspaces + Turborepo) with a minimal but running `api`, `worker`, and `web`, shared `contracts`/`config` packages, Docker images, dev + prod compose, Caddy reverse proxy, and CI/CD workflows. Domain features (auth, customers, plans, subscriptions, billing, RabbitMQ workers, webhooks, admin UI) are **not built yet** — follow `docs/roadmap.md` phase order and `docs/backlog.md` epics. The build/deploy scaffolding is proven end-to-end locally (`docker compose up` → api `/health` returns `ok`).
+**The full MVP is implemented** across `apps/{api,worker,web}` and `packages/{db,contracts,config}` (pnpm + Turborepo): auth (JWT httpOnly cookie, argon2), customers, plans+features, subscriptions (state machine), invoices, payments, **idempotent webhooks**, RabbitMQ workers (notifications + webhook processing, DLQ), synchronous transactional audit, admin console (Next.js), and observability (`/metrics`, worker `:9100/metrics`, `/health`, `/docs`). Docker images, dev + prod compose, Caddy, and CI/CD (GitHub Actions → GHCR → VPS) all work. Persistence lives in the shared **`@sbs/db`** package (schema + client + migrator + migrations); `apps/api/src/shared/database/*` are thin re-export shims.
+
+Key invariants to preserve when extending: webhook idempotency is two-layered (`UNIQUE(provider, provider_event_id)` at intake **+** conditional updates in the worker transaction); event publishing from the API is best-effort/fire-and-forget post-commit; audit is written synchronously inside the domain transaction. When adding a new workspace package, add its `package.json` to the pre-install `COPY` block in all three Dockerfiles.
 
 `docs/` is written in **Portuguese**. Code, identifiers, and this file are in English.
 
@@ -19,6 +21,8 @@ pnpm test                    # vitest
 pnpm --filter @sbs/api test  # test a single package
 docker compose up --build    # full local stack (pg, rabbit, api, worker, web)
 docker compose up -d postgres rabbitmq && pnpm dev   # infra + hot-reload dev
+pnpm --filter @sbs/db db:generate                     # regenerate migration after a schema change
+pnpm --filter @sbs/api db:migrate && pnpm --filter @sbs/api db:seed
 ```
 
 Notes: contracts is a **dev dependency** of api/worker and is bundled into their `dist` by tsup (`noExternal`), so the prod images don't link it. `pnpm build` must run before `typecheck`/`test`/Docker (turbo handles ordering via `^build`). Next.js `output: 'standalone'` is gated behind `BUILD_STANDALONE=1` (set only in the web Dockerfile) so local Windows builds aren't blocked by symlink privileges. Host ports in dev compose are overridable (`POSTGRES_HOST_PORT`, `API_HOST_PORT`, …).
