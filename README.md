@@ -1,129 +1,127 @@
 # Subscription Billing System
 
-Sistema fullstack de gerenciamento de assinaturas SaaS desenvolvido como case técnico de portfólio.
+![CI](https://github.com/jumaelmartins/subscription-billing-system/actions/workflows/ci.yml/badge.svg)
 
-O objetivo do projeto é demonstrar arquitetura modular, processamento assíncrono com RabbitMQ, webhooks idempotentes, PostgreSQL, testes automatizados, observabilidade, CI/CD e deploy real.
+Sistema fullstack de gerenciamento de assinaturas SaaS, desenvolvido como case técnico de portfólio. Demonstra **arquitetura modular**, **processamento assíncrono com RabbitMQ**, **webhooks idempotentes**, **PostgreSQL**, testes automatizados, observabilidade, CI/CD e deploy real.
 
-## Objetivo
+> Não é um gateway de pagamento. Um **provedor de pagamento fake** simula o ciclo de vida de cobrança para que o foco fique em arquitetura, domínio e confiabilidade. Veja [ADR 0005](docs/adr/0005-fake-payment-provider.md).
 
-Este projeto não tem como objetivo substituir gateways de pagamento como Stripe, Mercado Pago ou Pagar.me. A proposta é construir um MVP funcional que simule o ciclo de vida de assinaturas SaaS e sirva como estudo prático de engenharia de software.
+## Arquitetura
 
-## Stack Prevista
+Monólito modular + workers assíncronos. A **API** cuida de autenticação, regras síncronas e publicação de eventos; os **workers** consomem eventos e fazem o trabalho lento (notificações fake, processamento de webhooks).
 
-### Frontend
-- Next.js
-- TypeScript
-- Tailwind CSS
-- shadcn/ui
-- TanStack Query
-- React Hook Form
-- Zod
+```txt
+┌───────────┐   HTTP    ┌──────────────┐  publish   ┌────────────┐  consume   ┌─────────────┐
+│    Web    │ ────────▶ │     API      │ ─────────▶ │  RabbitMQ  │ ─────────▶ │   Worker    │
+│  Next.js  │  /api/*   │   Fastify    │  events    │  topic ex. │  queues    │  consumers  │
+└───────────┘  (proxy)  └──────┬───────┘            └─────┬──────┘  + DLQ      └──────┬──────┘
+                               │                          │                          │
+                               ▼                          │                          ▼
+                        ┌────────────┐                    │                   ┌────────────┐
+                        │ PostgreSQL │◀───────────────────┴───────────────────│ PostgreSQL │
+                        │  (Drizzle) │      transações + constraints           │  (Drizzle) │
+                        └────────────┘                                         └────────────┘
+```
 
-### Backend
-- Node.js
-- Fastify
-- TypeScript
-- Drizzle ORM
-- PostgreSQL
-- Zod
-- Pino Logger
-- OpenAPI/Swagger
+Exchange topic `billing.events`; filas `billing.{webhooks,notifications,audit,analytics}.queue` + `billing.dead-letter.queue`. Todo evento carrega um `correlationId` que atravessa API e workers.
 
-### Mensageria
-- RabbitMQ
-- Topic Exchange
-- Queues
-- Routing Keys
-- Dead Letter Queue
+### Idempotência de webhooks (peça central)
 
-### Infraestrutura
-- Docker
-- Docker Compose
-- GitHub Actions
-- Deploy em VPS ou plataforma cloud
+Provedores reenviam webhooks. O sistema protege consistência financeira em **duas camadas** — RabbitMQ (entrega ao-menos-uma-vez) **não** substitui isso:
 
-## Documentação
+1. **Ingestão** — todo webhook é persistido em `webhook_events` com `UNIQUE(provider, provider_event_id)`. Uma entrega duplicada não insere nada e é reconhecida sem republicar.
+2. **Processamento** — o worker checa o status do evento e faz **updates condicionais** de invoice dentro de uma transação. Um evento reentregue nunca cobra a fatura duas vezes.
 
-- [MVP Spec](docs/mvp-spec.md)
-- [Arquitetura](docs/architecture.md)
-- [Modelo de Domínio](docs/domain-model.md)
-- [Requisitos](docs/requirements.md)
-- [Fluxos de Usuário](docs/user-flows.md)
-- [Roadmap](docs/roadmap.md)
-- [Backlog Técnico](docs/backlog.md)
-- [Observabilidade](docs/observability.md)
-- [Webhooks e Idempotência](docs/webhook-idempotency.md)
-- [CI/CD](docs/ci-cd.md)
-- [ADRs](docs/adr)
+Fluxo: `simular pagamento` gera um evento fake e o entrega ao **endpoint real de webhook**, exercitando o caminho idempotente de verdade.
 
-## Narrativa do Projeto
+## Stack
 
-Um sistema de assinaturas SaaS desenvolvido como case técnico fullstack, com foco em arquitetura modular, processamento assíncrono com RabbitMQ, webhooks idempotentes, PostgreSQL, testes automatizados, observabilidade, CI/CD e deploy real.
-
----
+| Camada | Tecnologias |
+|---|---|
+| **API** | Node 22 · Fastify · TypeScript · Drizzle ORM · PostgreSQL · Zod · `@fastify/jwt` (cookie httpOnly) · `@node-rs/argon2` · Pino · OpenAPI/Swagger · `prom-client` |
+| **Worker** | Node 22 · `amqp-connection-manager` · Drizzle · Pino · `prom-client` |
+| **Web** | Next.js (App Router) · TypeScript · Tailwind · TanStack Query · React Hook Form · Zod |
+| **Mensageria** | RabbitMQ (topic exchange, filas, DLQ) |
+| **Infra** | Docker · Docker Compose · Caddy (TLS automático) · GitHub Actions · GHCR |
+| **Testes** | Vitest · Testcontainers (Postgres + RabbitMQ efêmeros) |
 
 ## Monorepo
 
-Gerenciado com **pnpm workspaces + Turborepo**.
+pnpm workspaces + Turborepo.
 
-```
+```txt
 apps/
-  api/       # Fastify + TypeScript (HTTP, regras síncronas, publica eventos)
-  worker/    # consumidores RabbitMQ (efeitos assíncronos + webhooks)
-  web/       # Next.js (console administrativo)
+  api/       Fastify — modules/{auth,users,customers,plans,subscriptions,invoices,payments,webhooks,stats,audit,health}
+  worker/    consumers RabbitMQ (notifications, webhooks) + /metrics
+  web/       console administrativo Next.js
 packages/
-  contracts/ # eventos, routing keys, filas, DTOs (fonte única de verdade)
-  config/    # tsconfig base compartilhado
+  db/        schema Drizzle + client + migrator + migrations (compartilhado api/worker)
+  contracts/ eventos, routing keys, filas, DTOs Zod
+  config/    tsconfig base
 ```
 
-## Requisitos
+## Como rodar
 
-- Node.js 22+
-- pnpm 10+ (`corepack enable`)
-- Docker + Docker Compose
+**Requisitos:** Node 22+, pnpm 10+ (`corepack enable`), Docker.
 
-## Rodar tudo com Docker (stack completa)
+### Stack completa (um comando)
 
 ```bash
-cp .env.example .env      # ajuste se quiser
+cp .env.example .env
 docker compose up --build
+# migrações + admin (uma vez):
+docker compose run --rm --entrypoint "sh -c" api "node dist/migrate.js && node dist/seed.js"
 ```
 
-Sobe PostgreSQL, RabbitMQ, API, worker e web. Endpoints:
+- Web: http://localhost:3000 · API: http://localhost:3333 · RabbitMQ UI: http://localhost:15672
+- Login: `ADMIN_EMAIL` / `ADMIN_PASSWORD` do `.env`.
+- Portas do host configuráveis: `POSTGRES_HOST_PORT`, `API_HOST_PORT`, `WEB_HOST_PORT`, etc.
 
-- Web: http://localhost:3000
-- API health: http://localhost:3333/health · métricas: http://localhost:3333/metrics
-- RabbitMQ management: http://localhost:15672 (user/senha do `.env`)
-
-As portas do host são configuráveis para evitar conflitos:
-`POSTGRES_HOST_PORT`, `RABBITMQ_HOST_PORT`, `RABBITMQ_MGMT_PORT`, `API_HOST_PORT`, `WEB_HOST_PORT`.
-
-## Rodar em modo desenvolvimento (hot reload)
+### Desenvolvimento (hot reload)
 
 ```bash
 pnpm install
-docker compose up -d postgres rabbitmq   # só a infraestrutura
-pnpm dev                                  # api + worker + web em watch
+docker compose up -d postgres rabbitmq
+pnpm --filter @sbs/db db:generate   # se alterou schema
+pnpm --filter @sbs/api db:migrate && pnpm --filter @sbs/api db:seed
+pnpm dev
 ```
 
-## Scripts (raiz)
+### Scripts (raiz)
 
 ```bash
-pnpm build        # build de todos os pacotes (turbo)
-pnpm typecheck    # tsc --noEmit em todos os pacotes
-pnpm lint         # eslint
-pnpm test         # vitest
-pnpm format       # prettier --write
+pnpm build      # turbo build
+pnpm typecheck  # tsc --noEmit
+pnpm lint       # eslint
+pnpm test       # vitest (Testcontainers) — serial p/ limitar containers
 ```
 
-## CI/CD
+## API (principais rotas)
 
-- **CI** (`.github/workflows/ci.yml`): a cada push/PR roda `lint → typecheck → test → build`.
-- **Deploy** (`.github/workflows/deploy.yml`): em push na `main`, builda as imagens `sbs-api`/`sbs-worker`/`sbs-web`, publica no **GHCR** e faz deploy no VPS por SSH (`docker compose -f docker-compose.prod.yml pull && up -d`), com Caddy fazendo TLS automático.
+| Método | Rota | Descrição |
+|---|---|---|
+| POST | `/auth/login` · `/auth/logout` · GET `/auth/me` | Autenticação (JWT em cookie httpOnly) |
+| CRUD | `/customers` · `/plans` | Clientes e planos (+ features) |
+| POST | `/subscriptions` (+ `/:id/change-plan`,`/cancel`,`/reactivate`) | Ciclo de vida da assinatura |
+| POST | `/invoices` (+ `/:id/simulate-payment`,`/simulate-failure`) | Faturas e simulação de pagamento |
+| POST | `/webhooks/fake-payment-provider` | Ingestão idempotente de webhook (público) |
+| GET | `/webhooks` · `/audit` · `/stats/summary` | Listagens e métricas do dashboard |
+| GET | `/health` · `/metrics` · `/docs` | Health (pg+rabbit), Prometheus, Swagger UI |
 
-### Configuração do deploy (uma vez)
+## Observabilidade
 
-1. **Secrets** do repositório: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (e opcional `VPS_SSH_PORT`).
-2. **Variável** do repositório: `DEPLOY_ENABLED=true` (habilita o job de deploy).
-3. No **VPS**, criar `~/sbs/.env` (baseado em `.env.example`) com `DOMAIN`, `ACME_EMAIL`, senhas do Postgres/RabbitMQ, `JWT_SECRET`.
-4. **DNS**: apontar `app.<DOMAIN>` e `api.<DOMAIN>` para o IP do VPS (necessário para o TLS do Caddy).
+- **Logs** estruturados (Pino/JSON) com `requestId` e `correlationId`.
+- **`GET /health`** valida API + PostgreSQL + RabbitMQ.
+- **`GET /metrics`** (API) e **`:9100/metrics`** (worker) em formato Prometheus — requests, duração, webhooks recebidos/duplicados, mensagens processadas/DLQ por consumer.
+- **`GET /docs`** — OpenAPI/Swagger.
+
+## CI/CD & Deploy
+
+- **CI** (`.github/workflows/ci.yml`): a cada PR/push na `main` roda `lint → typecheck → test → build`.
+- **Deploy** (`.github/workflows/deploy.yml`): push na `main` → builda e publica imagens `sbs-api`/`sbs-worker`/`sbs-web` no **GHCR** → SSH no VPS → roda migrations → `docker compose -f docker-compose.prod.yml up -d`. **Caddy** provê HTTPS automático em `app.<DOMAIN>` e `api.<DOMAIN>`.
+
+**Habilitar o deploy (uma vez):** secrets `VPS_HOST`/`VPS_USER`/`VPS_SSH_KEY`, variável `DEPLOY_ENABLED=true`, `~/sbs/.env` no VPS e DNS apontando `app`/`api` para o servidor.
+
+## Documentação
+
+[MVP](docs/mvp-spec.md) · [Arquitetura](docs/architecture.md) · [Domínio](docs/domain-model.md) · [Requisitos](docs/requirements.md) · [Fluxos](docs/user-flows.md) · [Webhooks/Idempotência](docs/webhook-idempotency.md) · [Observabilidade](docs/observability.md) · [CI/CD](docs/ci-cd.md) · [Roadmap](docs/roadmap.md) · [Backlog](docs/backlog.md) · [ADRs](docs/adr)

@@ -3,6 +3,7 @@ import { desc } from 'drizzle-orm';
 import { RoutingKeys, type FakePaymentWebhook } from '@sbs/contracts';
 import { db, webhookEvents } from '@sbs/db';
 import { publishEvent } from '../../shared/messaging/publisher';
+import { webhooksDuplicateTotal, webhooksReceivedTotal } from '../../shared/observability/metrics';
 
 type IngestResult = { status: 'accepted'; id: string } | { status: 'duplicate' };
 
@@ -29,7 +30,10 @@ export async function ingestWebhook(
     })
     .returning();
 
+  webhooksReceivedTotal.inc();
+
   if (!row) {
+    webhooksDuplicateTotal.inc();
     return { status: 'duplicate' };
   }
 

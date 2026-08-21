@@ -3,6 +3,7 @@ import type { ConfirmChannel, ConsumeMessage } from 'amqplib';
 import { EXCHANGE, EXCHANGE_TYPE, Queues, RoutingKeys, type EventEnvelope } from '@sbs/contracts';
 import { handleNotification } from '../handlers/notification.handler';
 import { logger } from '../logger';
+import { messagesFailed, messagesProcessed } from '../metrics';
 
 const NOTIFICATION_KEYS = [
   RoutingKeys.SubscriptionCreated,
@@ -46,8 +47,10 @@ async function onMessage(wrapper: ChannelWrapper, msg: ConsumeMessage): Promise<
     const evt = JSON.parse(msg.content.toString()) as EventEnvelope;
     await handleNotification(evt);
     wrapper.ack(msg);
+    messagesProcessed.inc({ consumer: 'notifications' });
   } catch (err) {
     logger.error({ err }, 'notification failed; dead-lettering message');
     wrapper.nack(msg, false, false);
+    messagesFailed.inc({ consumer: 'notifications' });
   }
 }

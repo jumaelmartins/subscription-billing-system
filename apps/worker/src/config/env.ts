@@ -7,6 +7,7 @@ const EnvSchema = z.object({
     .default('info'),
   RABBITMQ_URL: z.string().default('amqp://sbs:sbs@localhost:5672'),
   DATABASE_URL: z.string().default('postgres://sbs:sbs@localhost:5432/sbs'),
+  METRICS_PORT: z.coerce.number().int().positive().default(9100),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

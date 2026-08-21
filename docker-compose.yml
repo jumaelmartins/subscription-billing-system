@@ -64,6 +64,9 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: postgres://${POSTGRES_USER:-sbs}:${POSTGRES_PASSWORD:-sbs}@postgres:5432/${POSTGRES_DB:-sbs}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-sbs}:${RABBITMQ_DEFAULT_PASS:-sbs}@rabbitmq:5672
+      METRICS_PORT: 9100
+    ports:
+      - '${WORKER_METRICS_PORT:-9100}:9100'
     depends_on:
       postgres:
         condition: service_healthy
