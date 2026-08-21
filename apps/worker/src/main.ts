@@ -1,17 +1,19 @@
 import { closeConnection, getConnection } from './broker';
 import { startNotificationsConsumer } from './consumers/notifications.consumer';
+import { startWebhooksConsumer } from './consumers/webhooks.consumer';
 import { logger } from './logger';
 
 async function main(): Promise<void> {
   const connection = getConnection();
-  const consumer = startNotificationsConsumer(connection);
-  await consumer.waitForConnect();
+  const notifications = startNotificationsConsumer(connection);
+  const webhooks = startWebhooksConsumer(connection);
+  await Promise.all([notifications.waitForConnect(), webhooks.waitForConnect()]);
   logger.info('worker ready');
 
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ signal }, 'shutting down');
     try {
-      await consumer.close();
+      await Promise.all([notifications.close(), webhooks.close()]);
       await closeConnection();
     } finally {
       process.exit(0);

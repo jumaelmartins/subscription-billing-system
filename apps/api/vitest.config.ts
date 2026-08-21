@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
+    setupFiles: ['./test/setup.ts'],
     // Run test files serially so at most one Testcontainers instance is up at a
     // time (avoids resource contention when the whole suite runs together).
     fileParallelism: false,

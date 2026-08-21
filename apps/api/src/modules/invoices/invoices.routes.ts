@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { generateInvoiceSchema, RoutingKeys } from '@sbs/contracts';
 import { parseInput } from '../../shared/errors';
 import { publishEvent } from '../../shared/messaging/publisher';
+import { ingestWebhook } from '../webhooks/webhooks.service';
 import { invoicesService } from './invoices.service';
 
 export async function invoiceRoutes(app: FastifyInstance): Promise<void> {
@@ -34,5 +36,35 @@ export async function invoiceRoutes(app: FastifyInstance): Promise<void> {
     );
     reply.code(201);
     return created;
+  });
+
+  // Simulate a provider payment/failure by feeding a fake event through the real
+  // idempotent webhook intake (see docs/user-flows.md §5).
+  app.post('/invoices/:id/simulate-payment', async (req) => {
+    const { id } = req.params as { id: string };
+    await invoicesService.get(id);
+    return ingestWebhook(
+      {
+        provider: 'fake-payment-provider',
+        providerEventId: randomUUID(),
+        eventType: 'invoice.paid',
+        data: { invoiceId: id },
+      },
+      req.id,
+    );
+  });
+
+  app.post('/invoices/:id/simulate-failure', async (req) => {
+    const { id } = req.params as { id: string };
+    await invoicesService.get(id);
+    return ingestWebhook(
+      {
+        provider: 'fake-payment-provider',
+        providerEventId: randomUUID(),
+        eventType: 'invoice.payment_failed',
+        data: { invoiceId: id },
+      },
+      req.id,
+    );
   });
 }
