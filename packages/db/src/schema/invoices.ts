@@ -4,6 +4,8 @@ import { subscriptions } from './subscriptions';
 
 export const invoices = pgTable('invoices', {
   id: uuid('id').primaryKey().defaultRandom(),
+  // Human-readable invoice number (e.g. INV-2026-0001), unique across the system.
+  number: text('number').notNull().unique(),
   subscriptionId: uuid('subscription_id')
     .notNull()
     .references(() => subscriptions.id, { onDelete: 'cascade' }),

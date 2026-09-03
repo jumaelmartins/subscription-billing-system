@@ -4,6 +4,7 @@ export * from './plans';
 export * from './audit';
 export * from './subscriptions';
 export * from './invoices';
+export * from './invoice-counters';
 export * from './payments';
 export * from './emails';
 export * from './webhooks';
