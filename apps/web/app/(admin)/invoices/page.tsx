@@ -72,7 +72,7 @@ export default function InvoicesPage() {
         <tbody>
           {(invoices.data ?? []).map((i) => (
             <TR key={i.id}>
-              <TD className="font-mono text-xs text-zinc-400">{i.id.slice(0, 8)}…</TD>
+              <TD className="font-mono text-xs text-zinc-300">{i.number}</TD>
               <TD className="font-medium text-zinc-100">{money(i.amount)}</TD>
               <TD>
                 <Badge value={i.status} />

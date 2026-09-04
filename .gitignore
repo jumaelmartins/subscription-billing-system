@@ -38,3 +38,6 @@ caddy_config/
 
 # playwright mcp artifacts
 .playwright-mcp/
+
+# demo recordings
+*.webm

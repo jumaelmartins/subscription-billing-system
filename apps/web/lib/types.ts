@@ -34,6 +34,7 @@ export interface Subscription {
 
 export interface Invoice {
   id: string;
+  number: string;
   subscriptionId: string;
   customerId: string;
   status: string;

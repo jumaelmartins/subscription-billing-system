@@ -9,9 +9,17 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Only advertise a JSON body when we actually send one. A parameterless
+  // POST/PATCH with `content-type: application/json` and an empty body makes
+  // Fastify reject the request (empty JSON body), which broke actions like
+  // "Simulate payment", Deactivate and Reactivate.
+  const hasBody = init?.body !== undefined && init?.body !== null;
   const res = await fetch(`/api${path}`, {
     ...init,
-    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+    headers: {
+      ...(hasBody ? { 'content-type': 'application/json' } : {}),
+      ...(init?.headers ?? {}),
+    },
     credentials: 'include',
   });
 

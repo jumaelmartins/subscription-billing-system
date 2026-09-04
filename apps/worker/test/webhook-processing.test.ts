@@ -28,7 +28,13 @@ async function seedInvoice(status: 'trialing' | 'past_due' | 'active') {
     .returning();
   const [invoice] = await db
     .insert(invoices)
-    .values({ subscriptionId: sub!.id, customerId: customer!.id, amount: 3000, status: 'open' })
+    .values({
+      number: `INV-TEST-${randomUUID().slice(0, 8)}`,
+      subscriptionId: sub!.id,
+      customerId: customer!.id,
+      amount: 3000,
+      status: 'open',
+    })
     .returning();
   return { customerId: customer!.id, subscriptionId: sub!.id, invoiceId: invoice!.id };
 }
